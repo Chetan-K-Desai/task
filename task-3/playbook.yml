@@ -1,0 +1,70 @@
+- name: Configure EC2 instance with Nginx and deploy Node.js application
+  hosts: ec2
+  become: true
+  become_user: root
+
+  tasks:
+    - name: Install required packages
+      yum:
+        name:
+          - nodejs
+          - git
+        state: present
+
+    - name: Ensure Node.js application directory exists
+      file:
+        path: /var/www/node-app
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Clone Node.js application repository
+      git:
+        repo: "https://github.com/Chetan-K-Desai/nodejs.git"
+        dest: /var/www/node-app
+        version: main
+
+    - name: Install Node.js dependencies
+      command: npm install
+      args:
+        chdir: /var/www/node-app
+
+    - name: Start Node.js application
+      shell: |
+        nohup node app.js > /var/log/node-app.log 2>&1 &
+      args:
+        chdir: /var/www/node-app
+
+    - name: Configure Nginx to reverse proxy Node.js application
+      copy:
+        dest: /etc/nginx/conf.d/node-app.conf
+        content: |
+          server {
+              listen 80;
+
+              location / {
+                  proxy_pass http://localhost:3000;
+                  proxy_http_version 1.1;
+                  proxy_set_header Upgrade $http_upgrade;
+                  proxy_set_header Connection 'upgrade';
+                  proxy_set_header Host $host;
+                  proxy_cache_bypass $http_upgrade;
+              }
+          }
+
+    - name: Check if default.conf exists
+      stat:
+        path: /etc/nginx/conf.d/default.conf
+      register: default_conf_stat
+
+    - name: Remove default Nginx configuration if it exists
+      file:
+        path: /etc/nginx/conf.d/default.conf
+        state: absent
+      when: default_conf_stat.stat.exists
+
+    - name: Restart Nginx
+      service:
+        name: nginx
+        state: restarted
