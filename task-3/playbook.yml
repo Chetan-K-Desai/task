@@ -23,7 +23,7 @@
       git:
         repo: "https://github.com/Chetan-K-Desai/nodejs.git"
         dest: /var/www/node-app
-        version: main
+        version: main  # Use appropriate branch or tag
 
     - name: Install Node.js dependencies
       command: npm install
@@ -38,20 +38,11 @@
 
     - name: Configure Nginx to reverse proxy Node.js application
       copy:
+        src: ./node-app.conf
         dest: /etc/nginx/conf.d/node-app.conf
-        content: |
-          server {
-              listen 80;
-
-              location / {
-                  proxy_pass http://localhost:3000;
-                  proxy_http_version 1.1;
-                  proxy_set_header Upgrade $http_upgrade;
-                  proxy_set_header Connection 'upgrade';
-                  proxy_set_header Host $host;
-                  proxy_cache_bypass $http_upgrade;
-              }
-          }
+        owner: root
+        group: root
+        mode: '0644'
 
     - name: Check if default.conf exists
       stat:

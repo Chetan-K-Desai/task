@@ -6,7 +6,7 @@ provider "tls" {}
 
 # VPC resource
 resource "aws_vpc" "my_vpc" {
-  cidr_block = "10.0.0.0/16" 
+  cidr_block = "10.0.0.0/16"
   tags = {
     Name = "NODEJS-VPC"
   }
@@ -15,7 +15,7 @@ resource "aws_vpc" "my_vpc" {
 # Subnet resource
 resource "aws_subnet" "my_subnet" {
   vpc_id            = aws_vpc.my_vpc.id
-  cidr_block        = "10.0.1.0/24" 
+  cidr_block        = "10.0.1.0/24"
   availability_zone = "ap-south-1a"
   tags = {
     Name = "NODEJS-Subnet"
@@ -93,13 +93,13 @@ resource "tls_private_key" "my_private_key" {
 
 # AWS Key Pair resource using the generated private key
 resource "aws_key_pair" "my_key_pair" {
-  key_name   = "my-ec2-key"                                      
+  key_name   = "my-ec2-key-${timestamp()}"
   public_key = tls_private_key.my_private_key.public_key_openssh
 }
 
 # EC2 instance resource
 resource "aws_instance" "my_ec2_instance" {
-  ami           = "ami-0fd05997b4dff7aac" 
+  ami           = "ami-0fd05997b4dff7aac"
   instance_type = "t2.micro"
   subnet_id     = aws_subnet.my_subnet.id
 
@@ -133,11 +133,6 @@ output "instance_public_ip" {
   value = aws_instance.my_ec2_instance.public_ip
 }
 
-# Output the instance's private IP address
-output "instance_private_ip" {
-  value = aws_instance.my_ec2_instance.private_ip
-}
-
 # Output the private key (for downloading)
 resource "local_file" "private_key" {
   content  = tls_private_key.my_private_key.private_key_pem
@@ -146,4 +141,32 @@ resource "local_file" "private_key" {
 
 output "private_key_path" {
   value = local_file.private_key.filename
+}
+
+# Null resource to run Ansible playbook
+resource "null_resource" "ansible_deploy" {
+  depends_on = [aws_instance.my_ec2_instance]
+
+  triggers = {
+    instance_state = aws_instance.my_ec2_instance.id
+  }
+
+  provisioner "local-exec" {
+    command = <<EOT
+      chmod 400 ./my-ec2-key.pem
+      echo "[ec2]" > inventory.ini
+      echo "${aws_instance.my_ec2_instance.public_ip} ansible_user=ec2-user ansible_ssh_private_key_file=./my-ec2-key.pem ansible_ssh_common_args='-o StrictHostKeyChecking=no'" >> inventory.ini
+
+      echo "Checking if SSH (port 22) is available on the instance..."
+      for i in {1..10}; do
+        nc -zv ${aws_instance.my_ec2_instance.public_ip} 22 && break
+        echo "Port 22 not open yet. Retrying in 5 seconds..."
+        sleep 5
+      done
+
+      # Run Ansible playbook
+      echo "Running Ansible playbook..."
+      ansible-playbook -i inventory.ini playbook.yml
+    EOT
+  }
 }
