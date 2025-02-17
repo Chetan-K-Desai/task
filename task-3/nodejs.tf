@@ -143,30 +143,30 @@ output "private_key_path" {
   value = local_file.private_key.filename
 }
 
-# Null resource to run Ansible playbook
-resource "null_resource" "ansible_deploy" {
-  depends_on = [aws_instance.my_ec2_instance]
-
-  triggers = {
-    instance_state = aws_instance.my_ec2_instance.id
-  }
-
-  provisioner "local-exec" {
-    command = <<EOT
-      chmod 400 ./my-ec2-key.pem
-      echo "[ec2]" > inventory.ini
-      echo "${aws_instance.my_ec2_instance.public_ip} ansible_user=ec2-user ansible_ssh_private_key_file=./my-ec2-key.pem ansible_ssh_common_args='-o StrictHostKeyChecking=no'" >> inventory.ini
-
-      echo "Checking if SSH (port 22) is available on the instance..."
-      for i in {1..10}; do
-        nc -zv ${aws_instance.my_ec2_instance.public_ip} 22 && break
-        echo "Port 22 not open yet. Retrying in 5 seconds..."
-        sleep 5
-      done
-
-      # Run Ansible playbook
-      echo "Running Ansible playbook..."
-      ansible-playbook -i inventory.ini playbook.yml
-    EOT
-  }
-}
+## Null resource to run Ansible playbook
+#resource "null_resource" "ansible_deploy" {
+#  depends_on = [aws_instance.my_ec2_instance]
+#
+#  triggers = {
+#    instance_state = aws_instance.my_ec2_instance.id
+#  }
+#
+#  provisioner "local-exec" {
+#    command = <<EOT
+#      chmod 400 ./my-ec2-key.pem
+#      echo "[ec2]" > inventory.ini
+#      echo "${aws_instance.my_ec2_instance.public_ip} ansible_user=ec2-user ansible_ssh_private_key_file=./my-ec2-key.pem ansible_ssh_common_args='-o StrictHostKeyChecking=no'" >> inventory.ini
+#
+#      echo "Checking if SSH (port 22) is available on the instance..."
+#      for i in {1..10}; do
+#        nc -zv ${aws_instance.my_ec2_instance.public_ip} 22 && break
+#        echo "Port 22 not open yet. Retrying in 5 seconds..."
+#        sleep 5
+#      done
+#
+#      # Run Ansible playbook
+#      echo "Running Ansible playbook..."
+#      ansible-playbook -i inventory.ini playbook.yml
+#    EOT
+#  }
+#}
